@@ -58,6 +58,9 @@ def load_blender_data(basedir, half_res=False, testskip=1):
             imgs.append(imageio.imread(fname))
             poses.append(np.array(frame['transform_matrix']))
         imgs = (np.array(imgs) / 255.).astype(np.float32) # keep all 4 channels (RGBA)
+        if imgs.shape[-1] == 3:
+            alpha = np.ones((*imgs.shape[:-1], 1), dtype=imgs.dtype)
+            imgs = np.concatenate([imgs, alpha], axis=-1)
         poses = np.array(poses).astype(np.float32)
         counts.append(counts[-1] + imgs.shape[0])
         all_imgs.append(imgs)
