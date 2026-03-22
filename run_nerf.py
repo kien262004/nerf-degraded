@@ -731,11 +731,12 @@ def train():
             target = images[img_i]
             target = torch.Tensor(target).to(device)
             pose = poses[img_i, :3,:4]
+            
+            patch_size = 32   # hoặc 64 nếu GPU đủ mạnh
 
             if N_rand is not None:
                 rays_o, rays_d = get_rays(H, W, K, torch.Tensor(pose))  # (H, W, 3), (H, W, 3)
                                 # ===== PATCH SAMPLING =====
-                patch_size = 32   # hoặc 64 nếu GPU đủ mạnh
 
                 if i < args.precrop_iters:
                     dH = min(int(H//2 * args.precrop_frac), (H - patch_size) // 2)
