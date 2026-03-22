@@ -760,6 +760,11 @@ def train():
                 batch_rays_01 = torch.stack([rays_o, rays_d], 0)
                 target_s = target[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
         
+        #####  Core optimization loop  #####
+        rgb, disp, acc, extras = render(H, W, K, chunk=args.chunk, rays=batch_rays_01,
+                                                verbose=i < 10, retraw=True,
+                                                **render_kwargs_train)
+        
         img_loss = img2mse(rgb, target_s)
         loss = img_loss
         
@@ -802,10 +807,7 @@ def train():
             target_patch = target_patch.view(patch_size, patch_size, 3)
             target_patch = target_patch.permute(2, 0, 1).unsqueeze(0)
 
-            #####  Core optimization loop  #####
-            rgb, disp, acc, extras = render(H, W, K, chunk=args.chunk, rays=batch_rays_01,
-                                                    verbose=i < 10, retraw=True,
-                                                    **render_kwargs_train)
+            
             
             rgb_patch, _, _, _ = render(H, W, K, chunk=args.chunk, rays=batch_rays_02,
                                                     verbose=i < 10, retraw=True,
