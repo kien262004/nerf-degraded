@@ -710,13 +710,13 @@ def train():
     start = start + 1
     for i in trange(start, N_iters):
         time0 = time.time()
-        patch_size = 32   # hoặc 64 nếu GPU đủ mạnh
+
         # Sample random ray batch
         if use_batching:
             # Random over all images
             batch = rays_rgb[i_batch:i_batch+N_rand] # [B, 2+1, 3*?]
             batch = torch.transpose(batch, 0, 1)
-            batch_rays_01, target_s = batch[:2], batch[2]
+            batch_rays, target_s = batch[:2], batch[2]
 
             i_batch += N_rand
             if i_batch >= rays_rgb.shape[0]:
@@ -731,14 +731,10 @@ def train():
             target = images[img_i]
             target = torch.Tensor(target).to(device)
             pose = poses[img_i, :3,:4]
-            
-            
 
             if N_rand is not None:
                 rays_o, rays_d = get_rays(H, W, K, torch.Tensor(pose))  # (H, W, 3), (H, W, 3)
-                                # ===== PATCH SAMPLING =====
-                
-                # ground truth
+
                 if i < args.precrop_iters:
                     dH = int(H//2 * args.precrop_frac)
                     dW = int(W//2 * args.precrop_frac)
@@ -757,72 +753,18 @@ def train():
                 select_coords = coords[select_inds].long()  # (N_rand, 2)
                 rays_o = rays_o[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
                 rays_d = rays_d[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
-                batch_rays_01 = torch.stack([rays_o, rays_d], 0)
+                batch_rays = torch.stack([rays_o, rays_d], 0)
                 target_s = target[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
-        
+
         #####  Core optimization loop  #####
-        rgb, disp, acc, extras = render(H, W, K, chunk=args.chunk, rays=batch_rays_01,
+        rgb, disp, acc, extras = render(H, W, K, chunk=args.chunk, rays=batch_rays,
                                                 verbose=i < 10, retraw=True,
                                                 **render_kwargs_train)
-        
+
+        optimizer.zero_grad()
         img_loss = img2mse(rgb, target_s)
-        loss = img_loss
-        
-        if i > 1000:
-            img_i = np.random.choice(i_train)
-            target = images[img_i]
-            target = torch.Tensor(target).to(device)
-            pose_01 = poses[img_i, :3,:4]
-            rays_o, rays_d = get_rays(H, W, K, torch.Tensor(pose_01)) 
-            # if i < args.precrop_iters:
-            #     dH = min(int(H//2 * args.precrop_frac), (H - patch_size) // 2)
-            #     dW = min(int(W//2 * args.precrop_frac), (W - patch_size) // 2)
-                
-            #     y0 = np.random.randint(dH, H - patch_size - dH)
-            #     x0 = np.random.randint(dH, W - patch_size - dH)
-            #     if i == start:
-            #         print(f"[Config] Center cropping of size {2*dH} x {2*dW} is enabled until iter {args.precrop_iters}")                
-            # else:
-            y0 = np.random.randint(0, H - patch_size)
-            x0 = np.random.randint(0, W - patch_size)
-
-            # tạo grid patch
-            coords_01 = torch.stack(
-                torch.meshgrid(
-                    torch.arange(y0, y0 + patch_size),
-                    torch.arange(x0, x0 + patch_size)
-                ),
-                -1
-            )  # (patch_size, patch_size, 2)
-            # coords_01[:,0] = coords_01[:,0].clamp(0, H-1)
-            # coords_01[:,1] = coords_01[:,1].clamp(0, W-1)
-            coords_01 = coords_01.reshape(-1, 2)  # (patch_size^2, 2)
-
-            # # lấy rays
-            rays_o_patch = rays_o[coords_01[:, 0], coords_01[:, 1]]
-            rays_d_patch = rays_d[coords_01[:, 0], coords_01[:, 1]]
-
-            batch_rays_02 = torch.stack([rays_o_patch, rays_d_patch], 0)
-            target_patch = target[coords_01[:, 0], coords_01[:, 1]]  # (N_rand, 3)
-            target_patch = target_patch.view(patch_size, patch_size, 3)
-            target_patch = target_patch.permute(2, 0, 1).unsqueeze(0)
-
-            
-            
-            rgb_patch, _, _, _ = render(H, W, K, chunk=args.chunk, rays=batch_rays_02,
-                                                    verbose=i < 10, retraw=True,
-                                                    **render_kwargs_train)
-            # 
-            rgb_patch = rgb_patch.view(patch_size, patch_size, 3)
-            rgb_patch = rgb_patch.permute(2, 0, 1).unsqueeze(0)
-            
-            optimizer.zero_grad()
-            
-            img_patch_loss = img2mse(rgb_patch, target_patch)
-            lam = 0.1
-            loss += img_patch_loss * lam
-        
         trans = extras['raw'][...,-1]
+        loss = img_loss
         psnr = mse2psnr(img_loss)
 
         if 'rgb0' in extras:
