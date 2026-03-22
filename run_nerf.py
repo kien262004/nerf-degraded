@@ -765,17 +765,17 @@ def train():
         target = torch.Tensor(target).to(device)
         # pose_01 = poses[img_i, :3,:4]
 
-        if i < args.precrop_iters:
-            dH = min(int(H//2 * args.precrop_frac), (H - patch_size) // 2)
-            dW = min(int(W//2 * args.precrop_frac), (W - patch_size) // 2)
+        # if i < args.precrop_iters:
+        #     dH = min(int(H//2 * args.precrop_frac), (H - patch_size) // 2)
+        #     dW = min(int(W//2 * args.precrop_frac), (W - patch_size) // 2)
             
-            y0 = np.random.randint(dH, H - patch_size - dH)
-            x0 = np.random.randint(dH, W - patch_size - dH)
-            if i == start:
-                print(f"[Config] Center cropping of size {2*dH} x {2*dW} is enabled until iter {args.precrop_iters}")                
-        else:
-            y0 = np.random.randint(0, H - patch_size)
-            x0 = np.random.randint(0, W - patch_size)
+        #     y0 = np.random.randint(dH, H - patch_size - dH)
+        #     x0 = np.random.randint(dH, W - patch_size - dH)
+        #     if i == start:
+        #         print(f"[Config] Center cropping of size {2*dH} x {2*dW} is enabled until iter {args.precrop_iters}")                
+        # else:
+        y0 = np.random.randint(0, H - patch_size)
+        x0 = np.random.randint(0, W - patch_size)
 
         # tạo grid patch
         coords_01 = torch.stack(
@@ -785,7 +785,8 @@ def train():
             ),
             -1
         )  # (patch_size, patch_size, 2)
-
+        # coords_01[:,0] = coords_01[:,0].clamp(0, H-1)
+        # coords_01[:,1] = coords_01[:,1].clamp(0, W-1)
         coords_01 = coords_01.reshape(-1, 2)  # (patch_size^2, 2)
 
         # # lấy rays
