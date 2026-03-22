@@ -716,7 +716,7 @@ def train():
             # Random over all images
             batch = rays_rgb[i_batch:i_batch+N_rand] # [B, 2+1, 3*?]
             batch = torch.transpose(batch, 0, 1)
-            batch_rays, target_s = batch[:2], batch[2]
+            batch_rays_01, target_s = batch[:2], batch[2]
 
             i_batch += N_rand
             if i_batch >= rays_rgb.shape[0]:
@@ -737,74 +737,88 @@ def train():
             if N_rand is not None:
                 rays_o, rays_d = get_rays(H, W, K, torch.Tensor(pose))  # (H, W, 3), (H, W, 3)
                                 # ===== PATCH SAMPLING =====
-
+                
+                # ground truth
+                target_s = target[coords[:, 0], coords[:, 1]]
                 if i < args.precrop_iters:
-                    dH = min(int(H//2 * args.precrop_frac), (H - patch_size) // 2)
-                    dW = min(int(W//2 * args.precrop_frac), (W - patch_size) // 2)
-                    
-                    y0 = np.random.randint(dH, H - patch_size - dH)
-                    x0 = np.random.randint(dH, W - patch_size - dH)
+                    dH = int(H//2 * args.precrop_frac)
+                    dW = int(W//2 * args.precrop_frac)
+                    coords = torch.stack(
+                        torch.meshgrid(
+                            torch.linspace(H//2 - dH, H//2 + dH - 1, 2*dH), 
+                            torch.linspace(W//2 - dW, W//2 + dW - 1, 2*dW)
+                        ), -1)
                     if i == start:
                         print(f"[Config] Center cropping of size {2*dH} x {2*dW} is enabled until iter {args.precrop_iters}")                
                 else:
-                    y0 = np.random.randint(0, H - patch_size)
-                    x0 = np.random.randint(0, W - patch_size)
+                    coords = torch.stack(torch.meshgrid(torch.linspace(0, H-1, H), torch.linspace(0, W-1, W)), -1)  # (H, W, 2)
 
-                # tạo grid patch
-                coords = torch.stack(
-                    torch.meshgrid(
-                        torch.arange(y0, y0 + patch_size),
-                        torch.arange(x0, x0 + patch_size)
-                    ),
-                    -1
-                )  # (patch_size, patch_size, 2)
+                coords = torch.reshape(coords, [-1,2])  # (H * W, 2)
+                select_inds = np.random.choice(coords.shape[0], size=[N_rand], replace=False)  # (N_rand,)
+                select_coords = coords[select_inds].long()  # (N_rand, 2)
+                rays_o = rays_o[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
+                rays_d = rays_d[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
+                batch_rays_01 = torch.stack([rays_o, rays_d], 0)
+                target_s = target[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
 
-                coords = coords.reshape(-1, 2)  # (patch_size^2, 2)
+        img_i = np.random.choice(i_train)
+        target = images[img_i]
+        target = torch.Tensor(target).to(device)
+        pose = poses[img_i, :3,:4]
 
-                # lấy rays
-                rays_o_patch = rays_o[coords[:, 0], coords[:, 1]]
-                rays_d_patch = rays_d[coords[:, 0], coords[:, 1]]
+        if i < args.precrop_iters:
+            dH = min(int(H//2 * args.precrop_frac), (H - patch_size) // 2)
+            dW = min(int(W//2 * args.precrop_frac), (W - patch_size) // 2)
+            
+            y0 = np.random.randint(dH, H - patch_size - dH)
+            x0 = np.random.randint(dH, W - patch_size - dH)
+            if i == start:
+                print(f"[Config] Center cropping of size {2*dH} x {2*dW} is enabled until iter {args.precrop_iters}")                
+        else:
+            y0 = np.random.randint(0, H - patch_size)
+            x0 = np.random.randint(0, W - patch_size)
 
-                batch_rays = torch.stack([rays_o_patch, rays_d_patch], 0)
-                target_s = target[coords[:, 0], coords[:, 1]]  # (N_rand, 3)
-                target_patch = target_s.view(patch_size, patch_size, 3)
-                target_patch = target_patch.permute(2, 0, 1).unsqueeze(0)
-                
-                # # ground truth
-                # target_s = target[coords[:, 0], coords[:, 1]]
-                # if i < args.precrop_iters:
-                #     dH = int(H//2 * args.precrop_frac)
-                #     dW = int(W//2 * args.precrop_frac)
-                #     coords = torch.stack(
-                #         torch.meshgrid(
-                #             torch.linspace(H//2 - dH, H//2 + dH - 1, 2*dH), 
-                #             torch.linspace(W//2 - dW, W//2 + dW - 1, 2*dW)
-                #         ), -1)
-                #     if i == start:
-                #         print(f"[Config] Center cropping of size {2*dH} x {2*dW} is enabled until iter {args.precrop_iters}")                
-                # else:
-                #     coords = torch.stack(torch.meshgrid(torch.linspace(0, H-1, H), torch.linspace(0, W-1, W)), -1)  # (H, W, 2)
+        # tạo grid patch
+        coords = torch.stack(
+            torch.meshgrid(
+                torch.arange(y0, y0 + patch_size),
+                torch.arange(x0, x0 + patch_size)
+            ),
+            -1
+        )  # (patch_size, patch_size, 2)
 
-                # coords = torch.reshape(coords, [-1,2])  # (H * W, 2)
-                # select_inds = np.random.choice(coords.shape[0], size=[N_rand], replace=False)  # (N_rand,)
-                # select_coords = coords[select_inds].long()  # (N_rand, 2)
-                # rays_o = rays_o[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
-                # rays_d = rays_d[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
-                # batch_rays = torch.stack([rays_o, rays_d], 0)
-                # target_s = target[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
+        coords = coords.reshape(-1, 2)  # (patch_size^2, 2)
+
+        # lấy rays
+        rays_o_patch = rays_o[coords[:, 0], coords[:, 1]]
+        rays_d_patch = rays_d[coords[:, 0], coords[:, 1]]
+
+        batch_rays_02 = torch.stack([rays_o_patch, rays_d_patch], 0)
+        target_patch = target[coords[:, 0], coords[:, 1]]  # (N_rand, 3)
+        target_patch = target_patch.view(patch_size, patch_size, 3)
+        target_patch = target_patch.permute(2, 0, 1).unsqueeze(0)
 
         #####  Core optimization loop  #####
-        rgb, disp, acc, extras = render(H, W, K, chunk=args.chunk, rays=batch_rays,
+        rgb, disp, acc, extras = render(H, W, K, chunk=args.chunk, rays=batch_rays_01,
+                                                verbose=i < 10, retraw=True,
+                                                **render_kwargs_train)
+        
+        rgb_patch, _, _, _ = render(H, W, K, chunk=args.chunk, rays=batch_rays_02,
                                                 verbose=i < 10, retraw=True,
                                                 **render_kwargs_train)
 
-        rgb_patch = rgb.view(patch_size, patch_size, 3)
+        rgb_patch = rgb_patch.view(patch_size, patch_size, 3)
         rgb_patch = rgb_patch.permute(2, 0, 1).unsqueeze(0)
         
         optimizer.zero_grad()
-        img_loss = img2mse(rgb_patch, target_patch)
+        
+        img_patch_loss = img2mse(rgb_patch, target_patch)
+        img_loss = img2mse(rgb, target_s)
+
+        lam = 1
+        
         trans = extras['raw'][...,-1]
-        loss = img_loss
+        loss = img_patch_loss + lam * img_loss
         psnr = mse2psnr(img_loss)
 
         if 'rgb0' in extras:
