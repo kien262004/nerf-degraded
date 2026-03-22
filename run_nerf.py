@@ -805,9 +805,9 @@ def train():
         # rgb_patch, _, _, _ = render(H, W, K, chunk=args.chunk, rays=batch_rays_02,
         #                                         verbose=i < 10, retraw=True,
         #                                         **render_kwargs_train)
-
-        rgb_patch = rgb_patch.view(patch_size, patch_size, 3)
-        rgb_patch = rgb_patch.permute(2, 0, 1).unsqueeze(0)
+        # 
+        # rgb_patch = rgb_patch.view(patch_size, patch_size, 3)
+        # rgb_patch = rgb_patch.permute(2, 0, 1).unsqueeze(0)
         
         optimizer.zero_grad()
         
