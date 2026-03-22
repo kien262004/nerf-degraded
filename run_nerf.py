@@ -802,7 +802,7 @@ def train():
         rgb_patch = rgb_patch.permute(2, 0, 1).unsqueeze(0)
         
         optimizer.zero_grad()
-        img_loss = img2mse(rgb_patch, target_s)
+        img_loss = img2mse(rgb_patch, target_patch)
         trans = extras['raw'][...,-1]
         loss = img_loss
         psnr = mse2psnr(img_loss)
