@@ -739,7 +739,6 @@ def train():
                                 # ===== PATCH SAMPLING =====
                 
                 # ground truth
-                target_s = target[coords[:, 0], coords[:, 1]]
                 if i < args.precrop_iters:
                     dH = int(H//2 * args.precrop_frac)
                     dW = int(W//2 * args.precrop_frac)
