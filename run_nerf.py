@@ -710,7 +710,7 @@ def train():
     start = start + 1
     for i in trange(start, N_iters):
         time0 = time.time()
-
+        patch_size = 32   # hoặc 64 nếu GPU đủ mạnh
         # Sample random ray batch
         if use_batching:
             # Random over all images
@@ -732,7 +732,7 @@ def train():
             target = torch.Tensor(target).to(device)
             pose = poses[img_i, :3,:4]
             
-            patch_size = 32   # hoặc 64 nếu GPU đủ mạnh
+            
 
             if N_rand is not None:
                 rays_o, rays_d = get_rays(H, W, K, torch.Tensor(pose))  # (H, W, 3), (H, W, 3)
