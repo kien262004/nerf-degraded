@@ -760,64 +760,64 @@ def train():
                 batch_rays_01 = torch.stack([rays_o, rays_d], 0)
                 target_s = target[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
 
-        img_i = np.random.choice(i_train)
-        target = images[img_i]
-        target = torch.Tensor(target).to(device)
-        pose = poses[img_i, :3,:4]
+        # img_i = np.random.choice(i_train)
+        # target = images[img_i]
+        # target = torch.Tensor(target).to(device)
+        # pose = poses[img_i, :3,:4]
 
-        if i < args.precrop_iters:
-            dH = min(int(H//2 * args.precrop_frac), (H - patch_size) // 2)
-            dW = min(int(W//2 * args.precrop_frac), (W - patch_size) // 2)
+        # if i < args.precrop_iters:
+        #     dH = min(int(H//2 * args.precrop_frac), (H - patch_size) // 2)
+        #     dW = min(int(W//2 * args.precrop_frac), (W - patch_size) // 2)
             
-            y0 = np.random.randint(dH, H - patch_size - dH)
-            x0 = np.random.randint(dH, W - patch_size - dH)
-            if i == start:
-                print(f"[Config] Center cropping of size {2*dH} x {2*dW} is enabled until iter {args.precrop_iters}")                
-        else:
-            y0 = np.random.randint(0, H - patch_size)
-            x0 = np.random.randint(0, W - patch_size)
+        #     y0 = np.random.randint(dH, H - patch_size - dH)
+        #     x0 = np.random.randint(dH, W - patch_size - dH)
+        #     if i == start:
+        #         print(f"[Config] Center cropping of size {2*dH} x {2*dW} is enabled until iter {args.precrop_iters}")                
+        # else:
+        #     y0 = np.random.randint(0, H - patch_size)
+        #     x0 = np.random.randint(0, W - patch_size)
 
-        # tạo grid patch
-        coords = torch.stack(
-            torch.meshgrid(
-                torch.arange(y0, y0 + patch_size),
-                torch.arange(x0, x0 + patch_size)
-            ),
-            -1
-        )  # (patch_size, patch_size, 2)
+        # # tạo grid patch
+        # coords = torch.stack(
+        #     torch.meshgrid(
+        #         torch.arange(y0, y0 + patch_size),
+        #         torch.arange(x0, x0 + patch_size)
+        #     ),
+        #     -1
+        # )  # (patch_size, patch_size, 2)
 
-        coords = coords.reshape(-1, 2)  # (patch_size^2, 2)
+        # coords = coords.reshape(-1, 2)  # (patch_size^2, 2)
 
-        # lấy rays
-        rays_o_patch = rays_o[coords[:, 0], coords[:, 1]]
-        rays_d_patch = rays_d[coords[:, 0], coords[:, 1]]
+        # # lấy rays
+        # rays_o_patch = rays_o[coords[:, 0], coords[:, 1]]
+        # rays_d_patch = rays_d[coords[:, 0], coords[:, 1]]
 
-        batch_rays_02 = torch.stack([rays_o_patch, rays_d_patch], 0)
-        target_patch = target[coords[:, 0], coords[:, 1]]  # (N_rand, 3)
-        target_patch = target_patch.view(patch_size, patch_size, 3)
-        target_patch = target_patch.permute(2, 0, 1).unsqueeze(0)
+        # batch_rays_02 = torch.stack([rays_o_patch, rays_d_patch], 0)
+        # target_patch = target[coords[:, 0], coords[:, 1]]  # (N_rand, 3)
+        # target_patch = target_patch.view(patch_size, patch_size, 3)
+        # target_patch = target_patch.permute(2, 0, 1).unsqueeze(0)
 
         #####  Core optimization loop  #####
         rgb, disp, acc, extras = render(H, W, K, chunk=args.chunk, rays=batch_rays_01,
                                                 verbose=i < 10, retraw=True,
                                                 **render_kwargs_train)
         
-        rgb_patch, _, _, _ = render(H, W, K, chunk=args.chunk, rays=batch_rays_02,
-                                                verbose=i < 10, retraw=True,
-                                                **render_kwargs_train)
+        # rgb_patch, _, _, _ = render(H, W, K, chunk=args.chunk, rays=batch_rays_02,
+        #                                         verbose=i < 10, retraw=True,
+        #                                         **render_kwargs_train)
 
         rgb_patch = rgb_patch.view(patch_size, patch_size, 3)
         rgb_patch = rgb_patch.permute(2, 0, 1).unsqueeze(0)
         
         optimizer.zero_grad()
         
-        img_patch_loss = img2mse(rgb_patch, target_patch)
+        # img_patch_loss = img2mse(rgb_patch, target_patch)
         img_loss = img2mse(rgb, target_s)
 
         lam = 1
         
         trans = extras['raw'][...,-1]
-        loss = img_patch_loss + lam * img_loss
+        loss = lam * img_loss
         psnr = mse2psnr(img_loss)
 
         if 'rgb0' in extras:
