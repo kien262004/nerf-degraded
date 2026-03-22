@@ -763,8 +763,8 @@ def train():
         img_i = np.random.choice(i_train)
         target = images[img_i]
         target = torch.Tensor(target).to(device)
-        # pose_01 = poses[img_i, :3,:4]
-
+        pose_01 = poses[img_i, :3,:4]
+        rays_o, rays_d = get_rays(H, W, K, torch.Tensor(pose_01)) 
         # if i < args.precrop_iters:
         #     dH = min(int(H//2 * args.precrop_frac), (H - patch_size) // 2)
         #     dW = min(int(W//2 * args.precrop_frac), (W - patch_size) // 2)
